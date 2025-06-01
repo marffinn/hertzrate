@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Cache cargo index
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Cache cargo build
+      uses: actions/cache@v3
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build release
+      run: cargo build --release
+
+    - name: Install Inno Setup
+      run: |
+        Invoke-WebRequest -Uri "https://files.jrsoftware.org/is/6/innosetup-6.2.2.exe" -OutFile "innosetup.exe"
+        Start-Process -FilePath "innosetup.exe" -ArgumentList "/SILENT" -Wait
+
+    - name: Build installer
+      run: |
+        & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss
+
+    - name: Get version
+      id: version
+      run: |
+        $version = if ($env:GITHUB_REF -match 'refs/tags/v(.+)') { $matches[1] } else { "dev" }
+        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: hertzrate-windows-${{ steps.version.outputs.VERSION }}
+        path: |
+          target/release/hertzrate-gui.exe
+          target/release/hertzrate.exe
+          installer/HertzRate-Setup-v*.exe
+
+  release:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Get version
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+    
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: hertzrate-windows-${{ steps.version.outputs.VERSION }}
+        path: ./artifacts
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ./artifacts/target/release/hertzrate-gui.exe
+          ./artifacts/target/release/hertzrate.exe
+          ./artifacts/installer/HertzRate-Setup-v*.exe
+        body: |
+          ## HertzRate v${{ steps.version.outputs.VERSION }}
+          
+          ### Installation Options
+          
+          **🎯 Recommended: Use the Windows Installer**
+          - Download `HertzRate-Setup-v${{ steps.version.outputs.VERSION }}.exe`
+          - Run as Administrator
+          - Includes both GUI and CLI versions
+          - Automatic Start Menu and desktop shortcuts
+          - Easy uninstall through Windows Programs & Features
+          
+          **📦 Portable Executables**
+          - `hertzrate-gui.exe` - GUI version (no console window)
+          - `hertzrate.exe` - CLI version
+          - No installation required, run directly
+          
+          ### Features
+          - 🖥️ Data-adaptive GUI that adjusts to your monitor setup
+          - 📋 List all connected monitors with available refresh rates
+          - ⚡ Set refresh rates for individual monitors
+          - 🔄 Auto-refresh monitor detection
+          - 💻 Full CLI support for automation
+          
+          ### System Requirements
+          - Windows 10/11 (64-bit)
+          - Administrator privileges (for changing display settings)
+          
+          ### Usage
+          ```bash
+          # GUI mode (recommended)
+          hertzrate-gui.exe
+          
+          # CLI mode
+          hertzrate.exe list
+          hertzrate.exe set -m 0 -r 144
+          ```
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
