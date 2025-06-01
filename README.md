@@ -15,18 +15,36 @@ A Rust application to manage refresh rates for all connected monitors on Windows
 
 ## Installation
 
-### Prerequisites
+### Option 1: Windows Installer (Recommended)
+
+Download the latest installer from the [Releases](https://github.com/your-username/hertzrate/releases) page:
+- `HertzRate-Setup-v0.1.0.exe` - Complete Windows installer
+
+**Features:**
+- Easy installation with Windows installer
+- Desktop shortcut and Start Menu integration
+- Optional PATH integration for CLI access
+- Clean uninstall through Windows Programs & Features
+
+### Option 2: Build from Source
+
+**Prerequisites:**
 - Windows 10/11
 - Rust toolchain (install from [rustup.rs](https://rustup.rs/))
 
-### Build from source
+**Build steps:**
 ```bash
 git clone <repository-url>
 cd hertzrate
 cargo build --release
 ```
 
-Two executables will be available:
+**Create installer:**
+```powershell
+.\build_installer.ps1
+```
+
+**Executables:**
 - `target/release/hertzrate-gui.exe` - GUI version (no console window)
 - `target/release/hertzrate.exe` - CLI version
 
